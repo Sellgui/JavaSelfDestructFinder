@@ -43,36 +43,41 @@ function Add-Finding {
 }
 
 function Search-SelfDestruct {
-    $minecraftPath = Join-Path $env:USERPROFILE "AppData\Roaming\.minecraft"
-    $special = @('doomsday','ceymer','prestige')
+    $mcPath = Join-Path $env:USERPROFILE "AppData\Roaming\.minecraft"
 
-    Write-Host "[i] Scanning .minecraft..." -ForegroundColor Cyan
+    Write-Host "[i] Diepe scan op self-destruct sporen..." -ForegroundColor Cyan
 
-    if (Test-Path $minecraftPath) {
-        Get-ChildItem -Path $minecraftPath -Recurse -File -ErrorAction SilentlyContinue -Depth 6 | ForEach-Object {
-            $name = $_.Name.ToLower()
-            $content = ""
-            if ($_.Extension -in '.log','.txt','.json','.cfg') {
-                $content = Get-Content $_.FullName -Raw -ErrorAction SilentlyContinue
-            }
-
-            foreach ($client in $special) {
-                if ($name.Contains($client) -or $content -match $client) {
-                    Add-Finding -Severity 'HIGH' -Category 'Self Destruct Client' -Evidence $_.Name -Path $_.FullName -Details "Doomsday/Ceymer/Prestige trace"
-                }
-            }
-
-            if ($name -match 'self.?destruct|autodestruct|destruct|injector|tempcheat' -or $content -match 'selfdestruct') {
-                Add-Finding -Severity 'HIGH' -Category 'Self Destruct Remnant' -Evidence $_.Name -Path $_.FullName
+    # 1. Minecraft logs + configs op inhoud
+    if (Test-Path $mcPath) {
+        Get-ChildItem -Path $mcPath -Recurse -File -ErrorAction SilentlyContinue -Depth 6 | Where-Object { $_.Extension -in '.log','.txt','.json','.cfg' } | ForEach-Object {
+            $content = Get-Content $_.FullName -Raw -ErrorAction SilentlyContinue
+            if ($content -match '(?i)self.?destruct|autodestruct|destruct|injector|doomsday|ceymer|prestige|tempcheat') {
+                Add-Finding -Severity 'HIGH' -Category 'Self Destruct Log/Content Trace' -Evidence $_.Name -Path $_.FullName -Details "Inhoud bevat self-destruct aanwijzingen"
             }
         }
     }
 
-    Write-Host "[i] Scanning Temp + Prefetch..." -ForegroundColor Cyan
-    Get-ChildItem -Path $env:TEMP, "$env:LOCALAPPDATA\Temp", "$env:SystemRoot\Prefetch" -Recurse -File -ErrorAction SilentlyContinue -Depth 5 | ForEach-Object {
-        $name = $_.Name.ToLower()
-        if ($name -match 'doomsday|ceymer|prestige|selfdestruct|autodestruct') {
-            Add-Finding -Severity 'HIGH' -Category 'Self Destruct Trace' -Evidence $_.Name -Path $_.FullName
+    # 2. Temp bestanden (zeer belangrijk voor self-destruct)
+    Write-Host "[i] Scanning Temp bestanden..." -ForegroundColor Cyan
+    Get-ChildItem -Path $env:TEMP, "$env:LOCALAPPDATA\Temp" -Recurse -File -ErrorAction SilentlyContinue -Depth 5 | ForEach-Object {
+        if ($_.Name -match '(?i)selfdestruct|autodestruct|destruct|injector|tempcheat') {
+            Add-Finding -Severity 'HIGH' -Category 'Self Destruct Temp File' -Evidence $_.Name -Path $_.FullName
+        }
+    }
+
+    # 3. Prefetch + Registry hints
+    Write-Host "[i] Scanning Prefetch..." -ForegroundColor Cyan
+    $prefetch = Join-Path $env:SystemRoot "Prefetch"
+    if (Test-Path $prefetch) {
+        Get-ChildItem -Path $prefetch -File | Where-Object { $_.Name -match '(?i)DOOMSDAY|CEYMER|PRESTIGE|INJECTOR' } | ForEach-Object {
+            Add-Finding -Severity 'HIGH' -Category 'Prefetch Execution Trace' -Evidence $_.Name -Path $_.FullName
+        }
+    }
+
+    # 4. Extra brede scan op verdachte patronen
+    Get-ChildItem -Path $env:USERPROFILE -Recurse -File -ErrorAction SilentlyContinue -Depth 4 -Include "*.jar","*.dll","*.exe" | Select-Object -First 300 | ForEach-Object {
+        if ($_.Name -match '(?i)injector|loader|selfdestruct') {
+            Add-Finding -Severity 'MEDIUM' -Category 'Suspicious Executable' -Evidence $_.Name -Path $_.FullName
         }
     }
 }
@@ -83,15 +88,21 @@ Search-SelfDestruct
 Write-Host "`n" + ("═" * 100) -ForegroundColor Green
 
 $high = @($script:Findings | Where-Object Severity -eq 'HIGH').Count
+$medium = @($script:Findings | Where-Object Severity -eq 'MEDIUM').Count
+
+Write-Host " HIGH   : $high" -ForegroundColor Red
+Write-Host " MEDIUM : $medium" -ForegroundColor Yellow
+Write-Host
 
 if ($script:Findings.Count -eq 0) {
     Write-Host " [OK] Geen duidelijke self-destruct sporen gevonden." -ForegroundColor Green
 } else {
-    Write-Host " HIGH : $high" -ForegroundColor Red
     $script:Findings | Sort-Object Severity -Descending | ForEach-Object {
-        Write-Host "[$($_.Severity)] $($_.Category)" -ForegroundColor (if ($_.Severity -eq 'HIGH') {'Red'} else {'Yellow'})
-        Write-Host "   Evidence : $($_.Evidence)"
+        $col = if ($_.Severity -eq 'HIGH') { 'Red' } else { 'Yellow' }
+        Write-Host "[$($_.Severity)] $($_.Category)" -ForegroundColor $col
+        Write-Host "   Evidence : $($_.Evidence)" 
         Write-Host "   Path     : $($_.Path)"
+        if ($_.Details) { Write-Host "   Details  : $($_.Details)" }
         Write-Host
     }
 }
