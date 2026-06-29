@@ -49,7 +49,7 @@ function Is-OwnTool {
     param([string]$Path)
     if ([string]::IsNullOrEmpty($Path)) { return $false }
     $lower = $Path.ToLower()
-    $badWords = @("finder","detector","scanner","fucker","injectorscanner","selfdestructfinder","selfdestruct")
+    $badWords = @("finder","detector","scanner","fucker","injectorscanner","selfdestructfinder","selfdestruct","ps1")
     foreach ($word in $badWords) {
         if ($lower.Contains($word)) { return $true }
     }
@@ -67,24 +67,24 @@ function Search-SelfDestruct {
             if ($_.Extension -in '.log','.txt') {
                 $content = Get-Content $_.FullName -Raw -ErrorAction SilentlyContinue
             }
-            if ($content -match '(?i)self.?destruct|autodestruct|destruct|injector|doomsday|ceymer|prestige') {
+            if ($content -match '(?i)self.?destruct|autodestruct|destruct.*inject|inject.*destruct|doomsday|ceymer|prestige.*destruct') {
                 Add-Finding -Severity 'HIGH' -Category 'Self Destruct Content Trace' -Evidence $_.Name -Path $_.FullName
             }
         }
     }
 
-    Write-ProgressBar -Percent 40 -Status "Scanning Temp files..."
+    Write-ProgressBar -Percent 50 -Status "Scanning Temp files..."
     Get-ChildItem -Path $env:TEMP, "$env:LOCALAPPDATA\Temp" -Recurse -File -ErrorAction SilentlyContinue -Depth 5 | ForEach-Object {
         if (Is-OwnTool $_.FullName) { return }
-        if ($_.Name -match '(?i)selfdestruct|autodestruct|destruct|injector') {
+        if ($_.Name -match '(?i)selfdestruct|autodestruct|destruct.*inject|injector.*temp') {
             Add-Finding -Severity 'HIGH' -Category 'Self Destruct Temp File' -Evidence $_.Name -Path $_.FullName
         }
     }
 
-    Write-ProgressBar -Percent 70 -Status "Scanning Prefetch + Registry..."
+    Write-ProgressBar -Percent 80 -Status "Scanning Prefetch..."
     $prefetch = Join-Path $env:SystemRoot "Prefetch"
     if (Test-Path $prefetch) {
-        Get-ChildItem -Path $prefetch -File | Where-Object { $_.Name -match '(?i)DOOMSDAY|CEYMER|PRESTIGE' } | ForEach-Object {
+        Get-ChildItem -Path $prefetch -File | Where-Object { $_.Name -match '(?i)DOOMSDAY|CEYMER|PRESTIGE.*INJECT' } | ForEach-Object {
             Add-Finding -Severity 'HIGH' -Category 'Prefetch Trace' -Evidence $_.Name -Path $_.FullName
         }
     }
@@ -92,11 +92,9 @@ function Search-SelfDestruct {
     Write-ProgressBar -Percent 100 -Status "Scan complete"
 }
 
-# Start
 Write-Header
 Search-SelfDestruct
 
-# Logbestand maken
 "Self Destruct Scan Result - $($script:Now)" | Out-File $script:LogFile
 "================================================================" | Out-File $script:LogFile -Append
 
