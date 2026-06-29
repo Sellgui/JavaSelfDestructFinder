@@ -13,14 +13,6 @@ function Write-Header {
     Write-Host "╚════════════════════════════════════════════════════════════════════════════════════════════╝" -ForegroundColor Green
     Write-Host
 
-    Write-Host "  ███╗   ███╗██╗███╗   ██╗███████╗ ██████╗██████╗  █████╗ ███████╗████████╗" -ForegroundColor Green
-    Write-Host "  ████╗ ████║██║████╗  ██║██╔════╝██╔════╝██╔══██╗██╔══██╗██╔════╝╚══██╔══╝" -ForegroundColor Green
-    Write-Host "  ██╔████╔██║██║██╔██╗ ██║█████╗  ██║     ██████╔╝███████║█████╗     ██║   " -ForegroundColor Green
-    Write-Host "  ██║╚██╔╝██║██║██║╚██╗██║██╔══╝  ██║     ██╔══██╗██╔══██║██╔══╝     ██║   " -ForegroundColor Green
-    Write-Host "  ██║ ╚═╝ ██║██║██║ ╚████║███████╗╚██████╗██║  ██║██║  ██║██║        ██║   " -ForegroundColor Green
-    Write-Host "  ╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝╚══════╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝        ╚═╝   " -ForegroundColor Green
-    Write-Host
-
     Write-Host "                        SELF" -ForegroundColor Green
     Write-Host "                      DESTRUCT" -ForegroundColor Green
     Write-Host "                      DETECTOR" -ForegroundColor Green
@@ -29,6 +21,16 @@ function Write-Header {
     Write-Host (" Scan started: {0}" -f $script:Now.ToString('yyyy-MM-dd HH:mm:ss')) -ForegroundColor White
     Write-Host ("═" * 100) -ForegroundColor Green
     Write-Host
+}
+
+function Write-ProgressBar {
+    param([int]$Percent, [string]$Status)
+    $width = 50
+    $filled = [math]::Floor(($Percent / 100) * $width)
+    $empty = $width - $filled
+    $bar = ('█' * $filled) + ('░' * $empty)
+    Write-Host ("`r[ {0} ] {1,3}% {2}" -f $bar, $Percent, $Status) -ForegroundColor Green -NoNewline
+    if ($Percent -ge 100) { Write-Host }
 }
 
 function Add-Finding {
@@ -42,44 +44,51 @@ function Add-Finding {
     })
 }
 
+function Is-OwnTool {
+    param([string]$Path)
+    if ([string]::IsNullOrEmpty($Path)) { return $false }
+    $lower = $Path.ToLower()
+    $badWords = @("finder","detector","scanner","fucker","injectorscanner","selfdestructfinder","selfdestruct")
+    foreach ($word in $badWords) {
+        if ($lower.Contains($word)) { return $true }
+    }
+    return $false
+}
+
 function Search-SelfDestruct {
+    Write-ProgressBar -Percent 10 -Status "Scanning Minecraft folder..."
     $mcPath = Join-Path $env:USERPROFILE "AppData\Roaming\.minecraft"
 
-    Write-Host "[i] Diepe scan op self-destruct sporen..." -ForegroundColor Cyan
-
-    # 1. Minecraft logs + configs op inhoud
     if (Test-Path $mcPath) {
-        Get-ChildItem -Path $mcPath -Recurse -File -ErrorAction SilentlyContinue -Depth 6 | Where-Object { $_.Extension -in '.log','.txt','.json','.cfg' } | ForEach-Object {
-            $content = Get-Content $_.FullName -Raw -ErrorAction SilentlyContinue
-            if ($content -match '(?i)self.?destruct|autodestruct|destruct|injector|doomsday|ceymer|prestige|tempcheat') {
-                Add-Finding -Severity 'HIGH' -Category 'Self Destruct Log/Content Trace' -Evidence $_.Name -Path $_.FullName -Details "Inhoud bevat self-destruct aanwijzingen"
+        Get-ChildItem -Path $mcPath -Recurse -File -ErrorAction SilentlyContinue -Depth 6 | ForEach-Object {
+            if (Is-OwnTool $_.FullName) { return }
+            $content = ""
+            if ($_.Extension -in '.log','.txt') {
+                $content = Get-Content $_.FullName -Raw -ErrorAction SilentlyContinue
+            }
+            if ($content -match '(?i)self.?destruct|autodestruct|destruct|injector|doomsday|ceymer|prestige') {
+                Add-Finding -Severity 'HIGH' -Category 'Self Destruct Content Trace' -Evidence $_.Name -Path $_.FullName
             }
         }
     }
 
-    # 2. Temp bestanden (zeer belangrijk voor self-destruct)
-    Write-Host "[i] Scanning Temp bestanden..." -ForegroundColor Cyan
+    Write-ProgressBar -Percent 40 -Status "Scanning Temp files..."
     Get-ChildItem -Path $env:TEMP, "$env:LOCALAPPDATA\Temp" -Recurse -File -ErrorAction SilentlyContinue -Depth 5 | ForEach-Object {
-        if ($_.Name -match '(?i)selfdestruct|autodestruct|destruct|injector|tempcheat') {
+        if (Is-OwnTool $_.FullName) { return }
+        if ($_.Name -match '(?i)selfdestruct|autodestruct|destruct|injector') {
             Add-Finding -Severity 'HIGH' -Category 'Self Destruct Temp File' -Evidence $_.Name -Path $_.FullName
         }
     }
 
-    # 3. Prefetch + Registry hints
-    Write-Host "[i] Scanning Prefetch..." -ForegroundColor Cyan
+    Write-ProgressBar -Percent 70 -Status "Scanning Prefetch..."
     $prefetch = Join-Path $env:SystemRoot "Prefetch"
     if (Test-Path $prefetch) {
-        Get-ChildItem -Path $prefetch -File | Where-Object { $_.Name -match '(?i)DOOMSDAY|CEYMER|PRESTIGE|INJECTOR' } | ForEach-Object {
-            Add-Finding -Severity 'HIGH' -Category 'Prefetch Execution Trace' -Evidence $_.Name -Path $_.FullName
+        Get-ChildItem -Path $prefetch -File | Where-Object { $_.Name -match '(?i)DOOMSDAY|CEYMER|PRESTIGE' } | ForEach-Object {
+            Add-Finding -Severity 'HIGH' -Category 'Prefetch Trace' -Evidence $_.Name -Path $_.FullName
         }
     }
 
-    # 4. Extra brede scan op verdachte patronen
-    Get-ChildItem -Path $env:USERPROFILE -Recurse -File -ErrorAction SilentlyContinue -Depth 4 -Include "*.jar","*.dll","*.exe" | Select-Object -First 300 | ForEach-Object {
-        if ($_.Name -match '(?i)injector|loader|selfdestruct') {
-            Add-Finding -Severity 'MEDIUM' -Category 'Suspicious Executable' -Evidence $_.Name -Path $_.FullName
-        }
-    }
+    Write-ProgressBar -Percent 100 -Status "Scan complete"
 }
 
 Write-Header
@@ -87,22 +96,16 @@ Search-SelfDestruct
 
 Write-Host "`n" + ("═" * 100) -ForegroundColor Green
 
-$high = @($script:Findings | Where-Object Severity -eq 'HIGH').Count
-$medium = @($script:Findings | Where-Object Severity -eq 'MEDIUM').Count
-
-Write-Host " HIGH   : $high" -ForegroundColor Red
-Write-Host " MEDIUM : $medium" -ForegroundColor Yellow
-Write-Host
-
 if ($script:Findings.Count -eq 0) {
     Write-Host " [OK] Geen duidelijke self-destruct sporen gevonden." -ForegroundColor Green
 } else {
+    $high = @($script:Findings | Where-Object Severity -eq 'HIGH').Count
+    Write-Host " HIGH : $high" -ForegroundColor Red
     $script:Findings | Sort-Object Severity -Descending | ForEach-Object {
         $col = if ($_.Severity -eq 'HIGH') { 'Red' } else { 'Yellow' }
         Write-Host "[$($_.Severity)] $($_.Category)" -ForegroundColor $col
         Write-Host "   Evidence : $($_.Evidence)" 
         Write-Host "   Path     : $($_.Path)"
-        if ($_.Details) { Write-Host "   Details  : $($_.Details)" }
         Write-Host
     }
 }
