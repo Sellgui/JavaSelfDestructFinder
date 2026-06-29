@@ -6,21 +6,14 @@ $script:Now = Get-Date
 $script:LogFile = "$env:USERPROFILE\Desktop\SelfDestruct_Scan_Result.txt"
 
 function Write-Header {
-    Clear-Host
-    Write-Host "╔════════════════════════════════════════════════════════════════════════════════════════════╗" -ForegroundColor Green
-    Write-Host "║" -ForegroundColor Green -NoNewline
-    Write-Host "          MINECRAFT SELF DESTRUCT FINDER          " -ForegroundColor White -NoNewline
-    Write-Host "║" -ForegroundColor Green
-    Write-Host "╚════════════════════════════════════════════════════════════════════════════════════════════╝" -ForegroundColor Green
-    Write-Host
 
     # Grote bold letters
     Write-Host "   ███████╗███████╗██╗     ███████╗" -ForegroundColor Green
     Write-Host "   ██╔════╝██╔════╝██║     ██╔════╝" -ForegroundColor Green
     Write-Host "   ███████╗█████╗  ██║     █████╗  " -ForegroundColor Green
     Write-Host "   ╚════██║██╔══╝  ██║     ██╔══╝  " -ForegroundColor Green
-    Write-Host "   ███████║███████╗███████╗███████╗" -ForegroundColor Green
-    Write-Host "   ╚══════╝╚══════╝╚══════╝╚══════╝" -ForegroundColor Green
+    Write-Host "   ███████║███████╗███████╗██║     " -ForegroundColor Green
+    Write-Host "   ╚══════╝╚══════╝╚══════╝╚═╝      " -ForegroundColor Green
     Write-Host
     Write-Host "  ██████╗ ███████╗███████╗████████╗██████╗ ██╗   ██╗ ██████╗████████╗" -ForegroundColor Green
     Write-Host "  ██╔══██╗██╔════╝██╔════╝╚══██╔══╝██╔══██╗██║   ██║██╔════╝╚══██╔══╝" -ForegroundColor Green
