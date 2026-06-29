@@ -3,6 +3,7 @@ param([switch]$NoPause)
 $ErrorActionPreference = 'SilentlyContinue'
 $script:Findings = New-Object System.Collections.Generic.List[object]
 $script:Now = Get-Date
+$script:LogFile = "$env:USERPROFILE\Desktop\SelfDestruct_Scan_Result.txt"
 
 function Write-Header {
     Clear-Host
@@ -25,7 +26,7 @@ function Write-Header {
 
 function Write-ProgressBar {
     param([int]$Percent, [string]$Status)
-    $width = 50
+    $width = 60
     $filled = [math]::Floor(($Percent / 100) * $width)
     $empty = $width - $filled
     $bar = ('█' * $filled) + ('░' * $empty)
@@ -80,7 +81,7 @@ function Search-SelfDestruct {
         }
     }
 
-    Write-ProgressBar -Percent 70 -Status "Scanning Prefetch..."
+    Write-ProgressBar -Percent 70 -Status "Scanning Prefetch + Registry..."
     $prefetch = Join-Path $env:SystemRoot "Prefetch"
     if (Test-Path $prefetch) {
         Get-ChildItem -Path $prefetch -File | Where-Object { $_.Name -match '(?i)DOOMSDAY|CEYMER|PRESTIGE' } | ForEach-Object {
@@ -91,24 +92,34 @@ function Search-SelfDestruct {
     Write-ProgressBar -Percent 100 -Status "Scan complete"
 }
 
+# Start
 Write-Header
 Search-SelfDestruct
+
+# Logbestand maken
+"Self Destruct Scan Result - $($script:Now)" | Out-File $script:LogFile
+"================================================================" | Out-File $script:LogFile -Append
 
 Write-Host "`n" + ("═" * 100) -ForegroundColor Green
 
 if ($script:Findings.Count -eq 0) {
     Write-Host " [OK] Geen duidelijke self-destruct sporen gevonden." -ForegroundColor Green
+    "Geen sporen gevonden." | Out-File $script:LogFile -Append
 } else {
     $high = @($script:Findings | Where-Object Severity -eq 'HIGH').Count
     Write-Host " HIGH : $high" -ForegroundColor Red
+    "HIGH : $high" | Out-File $script:LogFile -Append
+
     $script:Findings | Sort-Object Severity -Descending | ForEach-Object {
         $col = if ($_.Severity -eq 'HIGH') { 'Red' } else { 'Yellow' }
         Write-Host "[$($_.Severity)] $($_.Category)" -ForegroundColor $col
         Write-Host "   Evidence : $($_.Evidence)" 
         Write-Host "   Path     : $($_.Path)"
         Write-Host
+        "[$($_.Severity)] $($_.Category) | Path: $($_.Path)" | Out-File $script:LogFile -Append
     }
 }
 
 Write-Host ("═" * 100) -ForegroundColor Green
+Write-Host "Resultaten opgeslagen in: $script:LogFile" -ForegroundColor Green
 if (-not $NoPause) { Read-Host 'Druk op Enter om af te sluiten' }
