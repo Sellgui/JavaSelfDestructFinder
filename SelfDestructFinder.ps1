@@ -14,9 +14,28 @@ function Write-Header {
     Write-Host "╚════════════════════════════════════════════════════════════════════════════════════════════╝" -ForegroundColor Green
     Write-Host
 
-    Write-Host "                        SELF" -ForegroundColor Green
-    Write-Host "                      DESTRUCT" -ForegroundColor Green
-    Write-Host "                      DETECTOR" -ForegroundColor Green
+    # Grote bold letters
+    Write-Host "   ███████╗███████╗██╗     ███████╗" -ForegroundColor Green
+    Write-Host "   ██╔════╝██╔════╝██║     ██╔════╝" -ForegroundColor Green
+    Write-Host "   ███████╗█████╗  ██║     █████╗  " -ForegroundColor Green
+    Write-Host "   ╚════██║██╔══╝  ██║     ██╔══╝  " -ForegroundColor Green
+    Write-Host "   ███████║███████╗███████╗███████╗" -ForegroundColor Green
+    Write-Host "   ╚══════╝╚══════╝╚══════╝╚══════╝" -ForegroundColor Green
+    Write-Host
+    Write-Host "  ██████╗ ███████╗███████╗████████╗██████╗ ██╗   ██╗ ██████╗████████╗" -ForegroundColor Green
+    Write-Host "  ██╔══██╗██╔════╝██╔════╝╚══██╔══╝██╔══██╗██║   ██║██╔════╝╚══██╔══╝" -ForegroundColor Green
+    Write-Host "  ██║  ██║█████╗  ███████╗   ██║   ██████╔╝██║   ██║██║        ██║   " -ForegroundColor Green
+    Write-Host "  ██║  ██║██╔══╝  ╚════██║   ██║   ██╔══██╗██║   ██║██║        ██║   " -ForegroundColor Green
+    Write-Host "  ██████╔╝███████╗███████║   ██║   ██║  ██║╚██████╔╝╚██████╗   ██║   " -ForegroundColor Green
+    Write-Host "  ╚═════╝ ╚══════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝  ╚═════╝   ╚═╝   " -ForegroundColor Green
+    Write-Host
+    Write-Host "  ██████╗ ███████╗████████╗███████╗ ██████╗████████╗ ██████╗ ██████╗ " -ForegroundColor Green
+    Write-Host "  ██╔══██╗██╔════╝╚══██╔══╝██╔════╝██╔════╝╚══██╔══╝██╔═══██╗██╔══██╗" -ForegroundColor Green
+    Write-Host "  ██║  ██║█████╗     ██║   █████╗  ██║        ██║   ██║   ██║██████╔╝" -ForegroundColor Green
+    Write-Host "  ██║  ██║██╔══╝     ██║   ██╔══╝  ██║        ██║   ██║   ██║██╔══██╗" -ForegroundColor Green
+    Write-Host "  ██████╔╝███████╗   ██║   ███████╗╚██████╗   ██║   ╚██████╔╝██║  ██║" -ForegroundColor Green
+    Write-Host "  ╚═════╝ ╚══════╝   ╚═╝   ╚══════╝ ╚═════╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝" -ForegroundColor Green
+
     Write-Host
     Write-Host ("═" * 100) -ForegroundColor Green
     Write-Host (" Scan started: {0}" -f $script:Now.ToString('yyyy-MM-dd HH:mm:ss')) -ForegroundColor White
@@ -25,15 +44,16 @@ function Write-Header {
 }
 
 function Write-ProgressBar {
-    param([int]$Percent, [string]$Status)
+    param([int]$Percent)
     $width = 60
     $filled = [math]::Floor(($Percent / 100) * $width)
     $empty = $width - $filled
     $bar = ('█' * $filled) + ('░' * $empty)
-    Write-Host ("`r[ {0} ] {1,3}% " -f $bar, $Percent) -ForegroundColor Green -NoNewline
+    Write-Host ("`r[ {0} ] {1,3}%" -f $bar, $Percent) -ForegroundColor Green -NoNewline
     if ($Percent -ge 100) { Write-Host }
 }
 
+# Rest van de code (zelfde als vorige versie met filters)
 function Add-Finding {
     param([string]$Severity, [string]$Category, [string]$Evidence, [string]$Path)
     $script:Findings.Add([pscustomobject]@{
@@ -56,7 +76,7 @@ function Is-OwnTool {
 }
 
 function Search-SelfDestruct {
-    Write-ProgressBar -Percent 20 -Status ""
+    Write-ProgressBar -Percent 30
     $mcPath = Join-Path $env:USERPROFILE "AppData\Roaming\.minecraft"
 
     if (Test-Path $mcPath) {
@@ -66,21 +86,21 @@ function Search-SelfDestruct {
             if ($_.Extension -in '.log','.txt') {
                 $content = Get-Content $_.FullName -Raw -ErrorAction SilentlyContinue
             }
-            if ($content -match '(?i)self.?destruct|autodestruct|destruct.*inject|inject.*destruct|prestige.*destruct|doomsday|ceymer') {
+            if ($content -match '(?i)self.?destruct|autodestruct|destruct|prestige.*destruct') {
                 Add-Finding -Severity 'HIGH' -Category 'Self Destruct Trace' -Evidence $_.Name -Path $_.FullName
             }
         }
     }
 
-    Write-ProgressBar -Percent 60 -Status ""
+    Write-ProgressBar -Percent 70
     Get-ChildItem -Path $env:TEMP, "$env:LOCALAPPDATA\Temp" -Recurse -File -ErrorAction SilentlyContinue -Depth 5 | ForEach-Object {
         if (Is-OwnTool $_.FullName) { return }
-        if ($_.Name -match '(?i)selfdestruct|autodestruct|destruct|prestige.*destruct') {
+        if ($_.Name -match '(?i)selfdestruct|autodestruct|destruct|prestige') {
             Add-Finding -Severity 'HIGH' -Category 'Self Destruct Temp File' -Evidence $_.Name -Path $_.FullName
         }
     }
 
-    Write-ProgressBar -Percent 100 -Status ""
+    Write-ProgressBar -Percent 100
 }
 
 Write-Header
