@@ -30,18 +30,17 @@ function Write-ProgressBar {
     $filled = [math]::Floor(($Percent / 100) * $width)
     $empty = $width - $filled
     $bar = ('█' * $filled) + ('░' * $empty)
-    Write-Host ("`r[ {0} ] {1,3}% {2}" -f $bar, $Percent, $Status) -ForegroundColor Green -NoNewline
+    Write-Host ("`r[ {0} ] {1,3}% " -f $bar, $Percent) -ForegroundColor Green -NoNewline
     if ($Percent -ge 100) { Write-Host }
 }
 
 function Add-Finding {
-    param([string]$Severity, [string]$Category, [string]$Evidence, [string]$Path, [string]$Details = "")
+    param([string]$Severity, [string]$Category, [string]$Evidence, [string]$Path)
     $script:Findings.Add([pscustomobject]@{
         Severity = $Severity
         Category = $Category
         Evidence = $Evidence
         Path = $Path
-        Details = $Details
     })
 }
 
@@ -49,7 +48,7 @@ function Is-OwnTool {
     param([string]$Path)
     if ([string]::IsNullOrEmpty($Path)) { return $false }
     $lower = $Path.ToLower()
-    $badWords = @("finder","detector","scanner","fucker","injectorscanner","selfdestructfinder","selfdestruct","doomsday fucker","ocean ac")
+    $badWords = @("finder","detector","scanner","fucker","injectorscanner","selfdestructfinder","englishwords","passwords","password","fucker.exe")
     foreach ($word in $badWords) {
         if ($lower.Contains($word)) { return $true }
     }
@@ -57,39 +56,31 @@ function Is-OwnTool {
 }
 
 function Search-SelfDestruct {
-    Write-ProgressBar -Percent 10 -Status "Scanning Minecraft folder..."
+    Write-ProgressBar -Percent 20 -Status ""
     $mcPath = Join-Path $env:USERPROFILE "AppData\Roaming\.minecraft"
 
     if (Test-Path $mcPath) {
         Get-ChildItem -Path $mcPath -Recurse -File -ErrorAction SilentlyContinue -Depth 6 | ForEach-Object {
             if (Is-OwnTool $_.FullName) { return }
             $content = ""
-            if ($_.Extension -in '.log','.txt','.json') {
+            if ($_.Extension -in '.log','.txt') {
                 $content = Get-Content $_.FullName -Raw -ErrorAction SilentlyContinue
             }
             if ($content -match '(?i)self.?destruct|autodestruct|destruct.*inject|inject.*destruct|prestige.*destruct|doomsday|ceymer') {
-                Add-Finding -Severity 'HIGH' -Category 'Self Destruct Content Trace' -Evidence $_.Name -Path $_.FullName
+                Add-Finding -Severity 'HIGH' -Category 'Self Destruct Trace' -Evidence $_.Name -Path $_.FullName
             }
         }
     }
 
-    Write-ProgressBar -Percent 50 -Status "Scanning Temp files..."
+    Write-ProgressBar -Percent 60 -Status ""
     Get-ChildItem -Path $env:TEMP, "$env:LOCALAPPDATA\Temp" -Recurse -File -ErrorAction SilentlyContinue -Depth 5 | ForEach-Object {
         if (Is-OwnTool $_.FullName) { return }
-        if ($_.Name -match '(?i)selfdestruct|autodestruct|destruct|prestige.*destruct|doomsday|ceymer') {
+        if ($_.Name -match '(?i)selfdestruct|autodestruct|destruct|prestige.*destruct') {
             Add-Finding -Severity 'HIGH' -Category 'Self Destruct Temp File' -Evidence $_.Name -Path $_.FullName
         }
     }
 
-    Write-ProgressBar -Percent 80 -Status "Scanning Prefetch..."
-    $prefetch = Join-Path $env:SystemRoot "Prefetch"
-    if (Test-Path $prefetch) {
-        Get-ChildItem -Path $prefetch -File | Where-Object { $_.Name -match '(?i)PRESTIGE|DOOMSDAY|CEYMER' } | ForEach-Object {
-            Add-Finding -Severity 'HIGH' -Category 'Prefetch Trace' -Evidence $_.Name -Path $_.FullName
-        }
-    }
-
-    Write-ProgressBar -Percent 100 -Status "Scan complete"
+    Write-ProgressBar -Percent 100 -Status ""
 }
 
 Write-Header
@@ -102,19 +93,15 @@ Write-Host "`n" + ("═" * 100) -ForegroundColor Green
 
 if ($script:Findings.Count -eq 0) {
     Write-Host " [OK] Geen duidelijke self-destruct sporen gevonden." -ForegroundColor Green
-    "Geen sporen gevonden." | Out-File $script:LogFile -Append
 } else {
     $high = @($script:Findings | Where-Object Severity -eq 'HIGH').Count
     Write-Host " HIGH : $high" -ForegroundColor Red
-    "HIGH : $high" | Out-File $script:LogFile -Append
 
     $script:Findings | Sort-Object Severity -Descending | ForEach-Object {
-        $col = if ($_.Severity -eq 'HIGH') { 'Red' } else { 'Yellow' }
-        Write-Host "[$($_.Severity)] $($_.Category)" -ForegroundColor $col
+        Write-Host "[$($_.Severity)] $($_.Category)" -ForegroundColor Red
         Write-Host "   Evidence : $($_.Evidence)" 
         Write-Host "   Path     : $($_.Path)"
         Write-Host
-        "[$($_.Severity)] $($_.Category) | Path: $($_.Path)" | Out-File $script:LogFile -Append
     }
 }
 
